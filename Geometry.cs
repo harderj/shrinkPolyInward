@@ -43,30 +43,30 @@ public static class Geometry
 	}
 
 	public static List<int> SplitPolyL(int pi, int ai, int n)
-    => Enumerable.Range(pi, n).Select(i => i % n).TakeWhile(i => i != ai).Append(ai).ToList();
+		=> Enumerable.Range(pi, n).Select(i => i % n).TakeWhile(i => i != ai).Append(ai).ToList();
 
 	public static List<int> SplitPolyR(int pi, int bi, int n)
-    => Enumerable.Range(bi, n).Select(i => i % n).TakeWhile(i => i != pi).Append(pi).ToList();
-  
-  public static List<float> RootsDeg2(float a, float b, float c)
-  {
-    var d = b * b - 4 * a * c;
-    if (d < 0) return new List<float>();
-    var e = - b / (2 * a);
-    if (d == 0) return new List<float>() { e };
-    var x = (float) (e + Math.Sqrt(d) / (2 * a));
-    var y = (float) (e - Math.Sqrt(d) / (2 * a));
-    return new List<float>() { x, y };
-  }
+		=> Enumerable.Range(bi, n).Select(i => i % n).TakeWhile(i => i != pi).Append(pi).ToList();
+	
+	public static List<float> RootsDeg2(float a, float b, float c)
+	{
+		var d = b * b - 4 * a * c;
+		if (d < 0) return new List<float>();
+		var e = - b / (2 * a);
+		if (d == 0) return new List<float>() { e };
+		var x = (float) (e + Math.Sqrt(d) / (2 * a));
+		var y = (float) (e - Math.Sqrt(d) / (2 * a));
+		return new List<float>() { x, y };
+	}
 
 	public static List<float> LineSegCol(Vector2 a0, Vector2 b0, Vector2 va, Vector2 vb)
 	{
-    var ca = Cross2(va, vb);
-    var cb = Cross2(a0, vb) - Cross2(b0, va);
-    var cc = Cross2(a0, b0);
-    var roots = RootsDeg2(ca, cb, cc);
-    Func<float, bool> cond2 = t => Vector2.Dot(a0 + va * t, b0 + vb * t) < threshold;
-    return roots.Where(t => t > -threshold && cond2(t)).ToList();
+		var ca = Cross2(va, vb);
+		var cb = Cross2(a0, vb) - Cross2(b0, va);
+		var cc = Cross2(a0, b0);
+		var roots = RootsDeg2(ca, cb, cc);
+		Func<float, bool> cond2 = t => Vector2.Dot(a0 + va * t, b0 + vb * t) < threshold;
+		return roots.Where(t => t > -threshold && cond2(t)).ToList();
 	}
 
 	public static List<List<Vector2>> SimpleScale(IEnumerable<Vector2> polyIn, float offset)
@@ -86,7 +86,7 @@ public static class Geometry
 		var vrn = vr.Select(x => x.normalized).ToList();
 		var cp = vln.Select((x, i) => Cross2(x, vrn[i])).ToList();
 		var vd = vln.Select((x, i) => (x + vrn[i]) / cp[i]).ToList();
-    Func<float, List<Vector2>> ptt = t_ => p.Select((v, i) => v + vd[i] * t_).ToList();
+		Func<float, List<Vector2>> ptt = t_ => p.Select((v, i) => v + vd[i] * t_).ToList();
 
 		// var ts = vl.Select((x, i) => { // fixes the problem with triangles and circles
 		// 	var j = (i - 1 + n) % n;
@@ -106,16 +106,16 @@ public static class Geometry
 				vd[k] - vd[i]);
 			return rs.Select(r => (i, j, k, r, ptt(r)[i])).ToList();
 		});
-    if (cols.Count() == 0) return new List<List<Vector2>>() { ptt(t) };
-    else {
-      var (fpi, fai, fbi, ft, fcp) = cols.OrderBy(x => x.Item4).First();
-      if (ft > t) return new List<List<Vector2>>() { ptt(t) };
-      else {
-        var pft = ptt(ft);
-        var polyL = SplitPolyL(fpi, fai, n).Select(i => pft[i]).ToList();
-        var polyR = SplitPolyR(fpi, fbi, n).Select(i => pft[i]).ToList();
-        return ShrinkEdges(polyL, t - ft, iter).Concat(ShrinkEdges(polyR, t - ft, iter)).ToList();
-      }
-    }
+		if (cols.Count() == 0) return new List<List<Vector2>>() { ptt(t) };
+		else {
+			var (fpi, fai, fbi, ft, fcp) = cols.OrderBy(x => x.Item4).First();
+			if (ft > t) return new List<List<Vector2>>() { ptt(t) };
+			else {
+				var pft = ptt(ft);
+				var polyL = SplitPolyL(fpi, fai, n).Select(i => pft[i]).ToList();
+				var polyR = SplitPolyR(fpi, fbi, n).Select(i => pft[i]).ToList();
+				return ShrinkEdges(polyL, t - ft, iter).Concat(ShrinkEdges(polyR, t - ft, iter)).ToList();
+			}
+		}
 	}
 }

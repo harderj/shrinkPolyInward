@@ -17,7 +17,7 @@ public static class Geometry
 		polygons = new List<List<Vector2>>();
 		
 		// polygons = SimpleScale(polygonPoints.ToList(), offset);
-		polygons = ShrinkEdges(polygonPoints.Reverse().ToList(), offset);
+		polygons = ShrinkEdges(polygonPoints.ToList(), offset);
 		
 		bool success = true;
 
@@ -75,18 +75,21 @@ public static class Geometry
 	public static bool Between(float a, float b, float x)
 		=> a < x && x < b;
 
-	public static bool Clockwise(List<Vector2> vs) // TODO: or counter-clockwise? :O
+	public static bool Clockwise(List<Vector2> vs)
 	{
 		var n = vs.Count;
 		var us = vs.Select((x, i) => vs[(i + 1) % n]).ToList();
-		return vs.Select((x, i) => (x.x - us[i].x) * (x.y + us[i].y)).Sum() < 0;
+		return 0 < vs.Select((v, i) => (us[i].x - v.x) * (us[i].y + v.y)).Sum();
 	}
 
+	/// <summary>
+	/// assumes that p is counter-clockwisely oriented
+	/// </summary>
 	public static List<List<Vector2>> ShrinkEdges(List<Vector2> p, float t, int iter = 0)
 	{
 		const int maxIter = 100;
 		int n = p.Count();
-		if (iter > maxIter || n < 3 || !Clockwise(p) || DemoHelpers.IsPolygonSelfIntersecting(p))
+		if (iter > maxIter || n < 3)
 			return new List<List<Vector2>>();
 		iter ++;
 		var nl = p.Select((x, i) => p[(i - 1 + n) % n]).ToList();
@@ -95,10 +98,15 @@ public static class Geometry
 		var vr = nr.Select((x, i) => (x - p[i])).ToList();
 		var vln = vl.Select(x => x.normalized).ToList();
 		var vrn = vr.Select(x => x.normalized).ToList();
-		var cp = vln.Select((x, i) => Cross2(x, vrn[i])).ToList();
+		var cp = vln.Select((x, i) => -Cross2(x, vrn[i])).ToList();
 		var vd = vln.Select((x, i) => (x + vrn[i]) / cp[i]).ToList();
-		Func<float, List<Vector2>> ptt = t_ => p.Select((v, i) => v + vd[i] * t_).ToList();
-
+		Func<float, List<Vector2>> pt = t_ => p.Select((v, i) => v + vd[i] * t_).ToList();
+		var ptt = pt(t);
+		if (n == 3) {
+			var test = Vector2.Dot(((ptt[1] - ptt[0]) + (ptt[2] - ptt[0])), vd[0]);
+			if (test > 0) return new List<List<Vector2>>() { ptt };
+			else return new List<List<Vector2>>();
+		}
 		var triples = Triples(n);
 		var cols = triples.SelectMany((trpl) => {
 			var (i, j, k) = trpl;
@@ -107,14 +115,16 @@ public static class Geometry
 				p[k] - p[i],
 				vd[j] - vd[i],
 				vd[k] - vd[i]);
-			return rs.Select(r => (i, j, k, r, ptt(r)[i])).ToList();
+			return rs.Select(r => (i, j, k, r, pt(r)[i])).ToList();
 		});
 		if (cols.Count() == 0) return new List<List<Vector2>>();
+		// TODO: above line should actually throw error or be handled better
+		// maybe by moving the logic in case (n == 3) to here instead
 		else {
 			var (fpi, fai, fbi, ft, fcp) = cols.OrderBy(x => x.Item4).First();
-			if (ft > t) return new List<List<Vector2>>() { ptt(t) };
+			if (ft > t) return new List<List<Vector2>>() { pt(t) };
 			if (n == 3) return new List<List<Vector2>>();
-			var pft = ptt(ft);
+			var pft = pt(ft);
 			var polyL = SplitPolyL(fpi, fai, n).Select(i => pft[i]).ToList();
 			var polyR = SplitPolyR(fpi, fbi, n).Select(i => pft[i]).ToList();
 			return Enumerable.Concat(
@@ -123,3 +133,22 @@ public static class Geometry
 		}
 	}
 }
+
+/* trash
+
+public static bool Clockwise(List<Vector2> vs)
+{
+  var n = vs.Count;
+  var minY = vs.Select(x => x.y).Min();
+  var minYs = vs.Select((x, i) => (x, i)).Where(x => x.Item1.y == minY);
+	var minX = minYs.Select(x => x.Item1.x).Min();
+	var (a, i) = minYs.Where(x => x.Item1.x == minX).First();
+  var b = vs[(i - 1 + n) % n];
+  var c = vs[(i + 1) % n];
+  return Cross2(b - a, c - a) > 0;
+}
+
+public static float Cross2_(Vector2 v, Vector2 w)
+	=> (v.x * w.y - v.y * w.x);
+
+*/

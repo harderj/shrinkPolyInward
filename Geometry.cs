@@ -6,7 +6,7 @@ using UnityEngine;
 
 public static class Geometry
 {
-	public const float threshold = 0.001f;
+	public const float threshold = 0.01f;
 	/// <summary>
 	/// Shrink a polygon with anti-clockwise winding by moving its edges inwards.
 	/// Outputs a list of anti-clockwise winded polygons and returns a success flag.
@@ -72,11 +72,22 @@ public static class Geometry
 	public static List<List<Vector2>> SimpleScale(IEnumerable<Vector2> polyIn, float offset)
 		=> new List<List<Vector2>>() { polyIn.Select(x => x * offset).ToList() };
 	
+	public static bool Between(float a, float b, float x)
+		=> a < x && x < b;
+
+	public static bool Clockwise(List<Vector2> vs) // TODO: or counter-clockwise? :O
+	{
+		var n = vs.Count;
+		var us = vs.Select((x, i) => vs[(i + 1) % n]).ToList();
+		return vs.Select((x, i) => (x.x - us[i].x) * (x.y + us[i].y)).Sum() < 0;
+	}
+
 	public static List<List<Vector2>> ShrinkEdges(List<Vector2> p, float t, int iter = 0)
 	{
 		const int maxIter = 100;
 		int n = p.Count();
-		if (iter > maxIter || n < 3) return new List<List<Vector2>>();
+		if (iter > maxIter || n < 3 || !Clockwise(p) || DemoHelpers.IsPolygonSelfIntersecting(p))
+			return new List<List<Vector2>>();
 		iter ++;
 		var nl = p.Select((x, i) => p[(i - 1 + n) % n]).ToList();
 		var nr = p.Select((x, i) => p[(i + 1) % n]).ToList();
@@ -88,14 +99,6 @@ public static class Geometry
 		var vd = vln.Select((x, i) => (x + vrn[i]) / cp[i]).ToList();
 		Func<float, List<Vector2>> ptt = t_ => p.Select((v, i) => v + vd[i] * t_).ToList();
 
-		// var ts = vl.Select((x, i) => { // fixes the problem with triangles and circles
-		// 	var j = (i - 1 + n) % n;
-		// 	var deltaL = Vector2.Dot(vln[i], vd[i]) + Vector2.Dot(vrn[j], vd[j]);
-		// 	return (i, x.magnitude / deltaL);
-		// }).OrderBy(x => x.Item2);
-		// if (ts.First().Item2 < t - threshold)
-		// 	return ShrinkEdges(p.Where((x, i) => i != ts.First().Item1).ToList(), t, iter);
-
 		var triples = Triples(n);
 		var cols = triples.SelectMany((trpl) => {
 			var (i, j, k) = trpl;
@@ -106,16 +109,17 @@ public static class Geometry
 				vd[k] - vd[i]);
 			return rs.Select(r => (i, j, k, r, ptt(r)[i])).ToList();
 		});
-		if (cols.Count() == 0) return new List<List<Vector2>>() { ptt(t) };
+		if (cols.Count() == 0) return new List<List<Vector2>>();
 		else {
 			var (fpi, fai, fbi, ft, fcp) = cols.OrderBy(x => x.Item4).First();
 			if (ft > t) return new List<List<Vector2>>() { ptt(t) };
-			else {
-				var pft = ptt(ft);
-				var polyL = SplitPolyL(fpi, fai, n).Select(i => pft[i]).ToList();
-				var polyR = SplitPolyR(fpi, fbi, n).Select(i => pft[i]).ToList();
-				return ShrinkEdges(polyL, t - ft, iter).Concat(ShrinkEdges(polyR, t - ft, iter)).ToList();
-			}
+			if (n == 3) return new List<List<Vector2>>();
+			var pft = ptt(ft);
+			var polyL = SplitPolyL(fpi, fai, n).Select(i => pft[i]).ToList();
+			var polyR = SplitPolyR(fpi, fbi, n).Select(i => pft[i]).ToList();
+			return Enumerable.Concat(
+				ShrinkEdges(polyL, t - ft, iter), ShrinkEdges(polyR, t - ft, iter)
+			).ToList();
 		}
 	}
 }
